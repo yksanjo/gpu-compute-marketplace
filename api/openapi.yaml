@@ -1,0 +1,598 @@
+openapi: 3.0.3
+info:
+  title: GPU Compute Marketplace API
+  description: |
+    API for accessing GPU compute resources through a tokenized marketplace.
+    Trade computational tokens to run AI/ML workloads on distributed GPU infrastructure.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api@gpucompute.market
+
+servers:
+  - url: https://api.gpucompute.market/v1
+    description: Production
+  - url: https://staging-api.gpucompute.market/v1
+    description: Staging
+  - url: http://localhost:8000/v1
+    description: Development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /tokens/balance:
+    get:
+      summary: Get token balance
+      description: Retrieve current compute credit balance
+      operationId: getTokenBalance
+      tags:
+        - Tokens
+      responses:
+        '200':
+          description: Token balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenBalance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /tokens/purchase:
+    post:
+      summary: Purchase compute credits
+      description: Purchase compute credits using payment method
+      operationId: purchaseTokens
+      tags:
+        - Tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseRequest'
+      responses:
+        '200':
+          description: Purchase successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /tokens/reserve:
+    post:
+      summary: Reserve tokens for a job
+      description: Reserve compute credits for a compute job
+      operationId: reserveTokens
+      tags:
+        - Tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveRequest'
+      responses:
+        '200':
+          description: Tokens reserved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReserveResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          description: Insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /jobs:
+    post:
+      summary: Submit a compute job
+      description: Submit a new compute job to the queue
+      operationId: submitJob
+      tags:
+        - Jobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobRequest'
+      responses:
+        '201':
+          description: Job submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          description: Insufficient tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /jobs/{jobId}:
+    get:
+      summary: Get job status
+      description: Retrieve status and details of a compute job
+      operationId: getJob
+      tags:
+        - Jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      summary: Cancel a job
+      description: Cancel a queued or scheduled job
+      operationId: cancelJob
+      tags:
+        - Jobs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job cancelled successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          description: Job cannot be cancelled (already running or completed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /matching/find:
+    post:
+      summary: Find matching resources
+      description: Find available GPU resources matching requirements
+      operationId: findMatches
+      tags:
+        - Matching
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MatchRequest'
+      responses:
+        '200':
+          description: Matching resources found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  matches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MatchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /matching/availability:
+    get:
+      summary: Get resource availability
+      description: Get availability statistics for GPU resources
+      operationId: getAvailability
+      tags:
+        - Matching
+      parameters:
+        - name: gpuType
+          in: query
+          schema:
+            type: string
+            enum: [A100, H100, V100, RTX4090, MI250X, MI300X]
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: tier
+          in: query
+          schema:
+            type: string
+            enum: [on-demand, reserved, spot, subscription]
+      responses:
+        '200':
+          description: Availability statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+
+  /resources:
+    get:
+      summary: List available resources
+      description: List all available GPU resources
+      operationId: listResources
+      tags:
+        - Resources
+      parameters:
+        - name: gpuType
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: tier
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of resources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resources:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GPUResource'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TokenBalance:
+      type: object
+      properties:
+        active:
+          type: number
+          format: float
+          description: Active compute credits available
+        reserved:
+          type: number
+          format: float
+          description: Reserved compute credits
+        total:
+          type: number
+          format: float
+          description: Total balance (active + reserved)
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration date of oldest allocation
+
+    PurchaseRequest:
+      type: object
+      required:
+        - amount
+        - paymentMethod
+      properties:
+        amount:
+          type: number
+          format: float
+          minimum: 1
+          description: Amount of compute credits to purchase
+        paymentMethod:
+          type: string
+          enum: [stripe, paypal, wire]
+        paymentToken:
+          type: string
+          description: Payment token from payment provider
+
+    PurchaseResponse:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: float
+        newBalance:
+          type: number
+          format: float
+
+    ReserveRequest:
+      type: object
+      required:
+        - jobId
+        - amount
+        - estimatedDuration
+        - gpuType
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: float
+        estimatedDuration:
+          type: number
+          format: float
+          description: Estimated duration in hours
+        gpuType:
+          type: string
+
+    ReserveResponse:
+      type: object
+      properties:
+        reservationId:
+          type: string
+          format: uuid
+        reservedAmount:
+          type: number
+          format: float
+        expiresAt:
+          type: string
+          format: date-time
+
+    JobRequest:
+      type: object
+      required:
+        - gpuRequirements
+        - containerImage
+      properties:
+        gpuRequirements:
+          $ref: '#/components/schemas/GPURequirements'
+        containerImage:
+          type: string
+          description: Docker image to run
+        priority:
+          type: string
+          enum: [urgent, high, normal, low]
+          default: normal
+        estimatedDuration:
+          type: number
+          format: float
+          description: Estimated duration in hours
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+        environment:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables
+        command:
+          type: array
+          items:
+            type: string
+          description: Command to run in container
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        status:
+          type: string
+          enum: [queued, scheduled, running, completed, failed, preempted, cancelled]
+        priority:
+          type: string
+          enum: [urgent, high, normal, low]
+        gpuRequirements:
+          $ref: '#/components/schemas/GPURequirements'
+        containerImage:
+          type: string
+        estimatedDuration:
+          type: number
+          format: float
+        tokensReserved:
+          type: number
+          format: float
+        tokensConsumed:
+          type: number
+          format: float
+        assignedResourceId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    GPURequirements:
+      type: object
+      required:
+        - type
+        - count
+        - memory
+      properties:
+        type:
+          type: string
+          enum: [A100, H100, V100, RTX4090, MI250X, MI300X]
+        count:
+          type: integer
+          minimum: 1
+        memory:
+          type: integer
+          description: Minimum memory in GB
+        computeCapability:
+          type: string
+          description: Minimum compute capability (e.g., "8.0")
+
+    MatchRequest:
+      type: object
+      required:
+        - gpuRequirements
+      properties:
+        gpuRequirements:
+          $ref: '#/components/schemas/GPURequirements'
+        preferences:
+          $ref: '#/components/schemas/MatchingPreferences'
+        urgency:
+          type: string
+          enum: [low, normal, high, urgent]
+          default: normal
+
+    MatchingPreferences:
+      type: object
+      properties:
+        maxPrice:
+          type: number
+          format: float
+          description: Maximum price per GPU-hour in CC
+        location:
+          type: string
+        tier:
+          type: string
+          enum: [on-demand, reserved, spot, subscription]
+          default: on-demand
+        dataCenterId:
+          type: string
+        minAvailability:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0.95
+
+    MatchResult:
+      type: object
+      properties:
+        resourceId:
+          type: string
+        dataCenterId:
+          type: string
+        gpuType:
+          type: string
+        count:
+          type: integer
+        pricePerHour:
+          type: number
+          format: float
+        totalEstimatedCost:
+          type: number
+          format: float
+        estimatedAvailability:
+          type: number
+          format: float
+        matchScore:
+          type: number
+          format: float
+        location:
+          type: string
+
+    Availability:
+      type: object
+      properties:
+        total:
+          type: integer
+        available:
+          type: integer
+        utilization:
+          type: number
+          format: float
+        averagePrice:
+          type: number
+          format: float
+
+    GPUResource:
+      type: object
+      properties:
+        id:
+          type: string
+        dataCenterId:
+          type: string
+        gpuType:
+          type: string
+        available:
+          type: boolean
+        currentLoad:
+          type: number
+          format: float
+        pricePerHour:
+          type: number
+          format: float
+        location:
+          type: string
+        tier:
+          type: string
+        specs:
+          type: object
+          properties:
+            memory:
+              type: integer
+            computeCapability:
+              type: string
+            bandwidth:
+              type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
